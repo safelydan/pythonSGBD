@@ -16,6 +16,15 @@ class BTreeNode:
             s += child.__str__(level + 1, indent)
         return s
 
+    def from_string(self, s):
+        # Simplified function to reconstruct a BTreeNode from a string
+        parts = s.split('\n')
+        self.keys = list(map(int, parts[0].strip('[]').split(',')))
+        if len(parts) > 1 and parts[1].strip():
+            self.children = [BTreeNode(self.t, leaf=True) for _ in range(len(parts[1].split('|')))]
+            for i, child_str in enumerate(parts[1].split('|')):
+                self.children[i].from_string(child_str)
+
 class BTree:
     def __init__(self, t):
         self.root = BTreeNode(t, leaf=True)
@@ -168,6 +177,12 @@ class BTree:
     def save_tree(self, filename_prefix, size):
         self.save_to_file(f"{filename_prefix}_size_{size}.txt")
 
+    def load_from_file(self, filename):
+        with open(filename, "r") as f:
+            content = f.read()
+            self.root = BTreeNode(self.t)
+            self.root.from_string(content)
+
 
 def generate_random_data(size):
     return random.sample(range(1, size * 10), size)
@@ -191,7 +206,7 @@ def performance_test(btree, data, filename_prefix, size):
     # Salvar a árvore após inserção
     btree.save_tree(filename_prefix, size)
 
-    # Teste de busca
+    # Teste de busca (leitura)
     print("Testando busca...")
     start_time = time.time()
     for value in data:
@@ -221,60 +236,34 @@ def performance_test(btree, data, filename_prefix, size):
     delete_times.append(delete_time)
     print(f"Tempo de exclusão: {delete_time:.4f} segundos")
 
-    # Salvar a árvore após exclusão
-    btree.save_tree(f"{filename_prefix}_deleted", size)
-
     return insert_times, search_times, update_times, delete_times
 
 
-def plot_performance(insert_times, search_times, update_times, delete_times):
-    sizes = [100, 500]
-
-    plt.figure(figsize=(12, 12))
-
-    plt.subplot(2, 2, 1)
-    plt.plot(sizes, insert_times, marker='o', color='b')
-    plt.ylabel('Tempo de Inserção (segundos)')
-    plt.title('Tempo de Inserção')
+def plot_performance(insert_times, search_times, update_times, delete_times, sizes):
+    plt.figure(figsize=(12, 8))
+    plt.plot(sizes, insert_times, label="Inserção", marker='o')
+    plt.plot(sizes, search_times, label="Busca", marker='o')
+    plt.plot(sizes, update_times, label="Atualização", marker='o')
+    plt.plot(sizes, delete_times, label="Exclusão", marker='o')
+    plt.xlabel("Tamanho da Árvore")
+    plt.ylabel("Tempo (segundos)")
+    plt.title("Desempenho da Árvore B")
+    plt.legend()
     plt.grid(True)
-
-    plt.subplot(2, 2, 2)
-    plt.plot(sizes, search_times, marker='o', color='g')
-    plt.ylabel('Tempo de Busca (segundos)')
-    plt.title('Tempo de Busca')
-    plt.grid(True)
-
-    plt.subplot(2, 2, 3)
-    plt.plot(sizes, update_times, marker='o', color='r')
-    plt.ylabel('Tempo de Atualização (segundos)')
-    plt.title('Tempo de Atualização')
-    plt.grid(True)
-
-    plt.subplot(2, 2, 4)
-    plt.plot(sizes, delete_times, marker='o', color='m')
-    plt.ylabel('Tempo de Exclusão (segundos)')
-    plt.title('Tempo de Exclusão')
-    plt.grid(True)
-
-    plt.tight_layout()
     plt.show()
 
 
 def display_results(sizes, insert_times, search_times, update_times, delete_times):
-    # Prepara os dados para a tabela
-    table_data = []
-    for i, size in enumerate(sizes):
-        table_data.append([size, insert_times[i], search_times[i], update_times[i], delete_times[i]])
+    table = []
+    for size, insert, search, update, delete in zip(sizes, insert_times, search_times, update_times, delete_times):
+        table.append([size, f"{insert:.4f}", f"{search:.4f}", f"{update:.4f}", f"{delete:.4f}"])
 
-    # Cabeçalhos da tabela
-    headers = ["Tamanho dos Dados", "Tempo de Inserção (s)", "Tempo de Busca (s)", "Tempo de Atualização (s)", "Tempo de Exclusão (s)"]
-
-    # Exibe a tabela no terminal
-    print(tabulate(table_data, headers, tablefmt="grid"))
+    headers = ["Tamanho", "Inserção", "Busca", "Atualização", "Exclusão"]
+    print(tabulate(table, headers=headers, tablefmt="grid"))
 
 
 def main():
-    sizes = [100, 500]
+    sizes = [100, 500, 1000, 5000, 10000]
     insert_times = []
     search_times = []
     update_times = []
@@ -282,18 +271,22 @@ def main():
 
     for size in sizes:
         data = generate_random_data(size)
-        btree = BTree(t=3)
-        it, st, ut, dt = performance_test(btree, data, f"btree_test_{size}", size)
-        insert_times.append(it[0])
-        search_times.append(st[0])
-        update_times.append(ut[0])
-        delete_times.append(dt[0])
+        btree = BTree(t=3)  # Ordem da árvore B
+        print(f"Testando árvore de tamanho {size}...")
+        ins, sea, up, del_ = performance_test(btree, data, "btree", size)
+        insert_times.extend(ins)
+        search_times.extend(sea)
+        update_times.extend(up)
+        delete_times.extend(del_)
 
-    # Exibe os resultados em formato de tabela
+    plot_performance(insert_times, search_times, update_times, delete_times, sizes)
     display_results(sizes, insert_times, search_times, update_times, delete_times)
 
-    # Plota o gráfico
-    plot_performance(insert_times, search_times, update_times, delete_times)
+    # Exemplo de leitura da árvore do arquivo
+    print("Lendo a árvore do arquivo...")
+    btree_loaded = BTree(t=3)
+    btree_loaded.load_from_file("btree_size_10000.txt")  # Substitua pelo nome do arquivo apropriado
+    btree_loaded.display()
 
 
 if __name__ == "__main__":
